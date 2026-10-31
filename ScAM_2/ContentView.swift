@@ -18,6 +18,12 @@ struct ContentView: View {
     @State private var isProcessing = false
     @State private var statusText: String = "Pilih hasil pindai kamu!"
     
+    @State private var imageSaver: ImageSaver?
+    
+    // Save Feedback States
+    @State private var showingSaveAlert = false
+    @State private var saveAlertMessage = ""
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -25,7 +31,7 @@ struct ContentView: View {
                 Color.tealSurface
                     .ignoresSafeArea()
                 
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     // Image Comparison Cards
                     HStack(spacing: 14) {
                         previewCard(
@@ -42,56 +48,80 @@ struct ContentView: View {
                             placeholderText: "Hasil crop"
                         )
                     }
-                    .frame(height: 260)
+                    .frame(height: 250)
                     .padding(.horizontal)
+                    .padding(.top, 26)
                     
                     // Status Description
                     Text(statusText)
                         .font(.footnote)
                         .fontWeight(.medium)
                         .foregroundStyle(Color.tealSubtext)
-                        .padding(.top, 4)
+                        .padding(.top, 2)
                     
-                    // Photo Picker Button
-                    PhotosPicker(selection: $selectedItem, matching: .images) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "photo.on.rectangle")
-                            Text("Pilih gambarnya")
-                        }
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color.brandTeal)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.tealBorder, lineWidth: 1.5)
-                        )
-                    }
-                    .padding(.horizontal)
-                    
-                    // Process Action Button
-                    Button {
-                        processReceipt()
-                    } label: {
-                        HStack(spacing: 8) {
-                            if isProcessing {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Image(systemName: "crop")
-                                Text("Perbaiki otomatis semuanya")
+                    // Action Buttons
+                    VStack(spacing: 12) {
+                        // 1. Photo Picker Button
+                        PhotosPicker(selection: $selectedItem, matching: .images) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "photo.on.rectangle")
+                                Text("Pilih gambarnya")
                             }
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.brandTeal)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.tealBorder, lineWidth: 1.5)
+                            )
                         }
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
+                        
+                        // 2. Process / Straighten Button
+                        Button {
+                            processReceipt()
+                        } label: {
+                            HStack(spacing: 8) {
+                                if isProcessing {
+                                    ProgressView()
+                                        .tint(.white)
+                                } else {
+                                    Image(systemName: "crop")
+                                    Text("Perbaiki otomatis semuanya")
+                                }
+                            }
+                            .font(.body.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color.brandTeal)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .disabled(originalImage == nil || isProcessing)
+                        
+                        // 3. Save to Photos Button
+                        Button {
+                            saveToPhotos()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "square.and.arrow.down")
+                                Text("Simpan ke Galeri")
+                            }
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(croppedImage == nil ? Color.tealSubtext.opacity(0.5) : Color.brandTeal)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(croppedImage == nil ? Color.tealBorder.opacity(0.4) : Color.brandTeal, lineWidth: 1.5)
+                            )
+                        }
+                        .disabled(croppedImage == nil || isProcessing)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color.brandTeal)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .disabled(originalImage == nil || isProcessing)
                     .padding(.horizontal)
                     
                     Spacer()
@@ -111,6 +141,11 @@ struct ContentView: View {
                             .foregroundStyle(Color.tealSubtext)
                     }
                 }
+            }
+            .alert("Simpan Foto", isPresented: $showingSaveAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(saveAlertMessage)
             }
             .onChange(of: selectedItem) { _, newItem in
                 Task {
@@ -136,7 +171,6 @@ struct ContentView: View {
                 .foregroundStyle(Color.tealSubtext)
             
             ZStack {
-                // Crisp card container over the tinted background
                 RoundedRectangle(cornerRadius: 14)
                     .fill(Color.white)
                     .overlay(
@@ -169,7 +203,7 @@ struct ContentView: View {
     private func processReceipt() {
         guard let originalImage else { return }
         isProcessing = true
-        statusText = "Mencari pinggiran dokumen..."
+        statusText = "Mencari pinggiran dokumen kamu..."
         
         Task {
             let result = await cropAndFlatten(image: originalImage)
@@ -181,6 +215,26 @@ struct ContentView: View {
                 statusText = "Maaf, gagal mendeteksi bentuk persegi dokumen."
             }
         }
+    }
+    
+    private func saveToPhotos() {
+        guard let croppedImage else { return }
+
+        // Gunakan state agar saver tetap hidup di memori sampai proses callback selesai
+        imageSaver = ImageSaver()
+        imageSaver?.onSuccess = {
+            saveAlertMessage = "Hasil pindaian berhasil disimpan ke Galeri Foto!"
+            showingSaveAlert = true
+            statusText = "Tersimpan ke galeri foto."
+            imageSaver = nil
+        }
+        imageSaver?.onError = { error in
+            saveAlertMessage = "Gagal menyimpan foto: \(error.localizedDescription)"
+            showingSaveAlert = true
+            imageSaver = nil
+        }
+
+        imageSaver?.saveImage(croppedImage)
     }
     
     // MARK: - Vision Processing
@@ -238,11 +292,33 @@ struct ContentView: View {
             "inputBottomRight": CIVector(cgPoint: bottomRight)
         ])
         
-        let context = CIContext(options: nil)
-        guard let finalCG = context.createCGImage(correctedCI, from: correctedCI.extent) else {
+        // 1. Kunci color space ke standar sRGB 8-bit agar JFIF/JPEG encoder mengenalinya
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        let context = CIContext(options: [
+            .workingColorSpace: colorSpace,
+            .outputColorSpace: colorSpace
+        ])
+        
+        let integralExtent = correctedCI.extent.integral
+        guard let finalCG = context.createCGImage(
+            correctedCI,
+            from: integralExtent,
+            format: .RGBA8,
+            colorSpace: colorSpace
+        ) else {
             return nil
         }
         
-        return UIImage(cgImage: finalCG)
+        let rawImage = UIImage(cgImage: finalCG)
+        
+        // 2. Flatten bitmap untuk menghilangkan metadata CoreImage yang ditolak JFIF session
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        let renderer = UIGraphicsImageRenderer(size: rawImage.size, format: format)
+        return renderer.image { _ in
+            rawImage.draw(in: CGRect(origin: .zero, size: rawImage.size))
+        }
     }
 }
+
+
