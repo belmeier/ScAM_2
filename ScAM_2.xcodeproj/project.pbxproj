@@ -53,9 +53,9 @@
 			buildConfigurationList = 000000000000000110000000 /* Build configuration list for PBXNativeTarget "ScAM_2" */;
 			buildPhases = (
 				000000000000000120000000 /* Sources */,
-				585E3F0730963ECB00D5079C /* ShellScript */,
 				000000000000000130000000 /* Frameworks */,
 				000000000000000140000000 /* Resources */,
+				585E3F0730963ECB00D5079C /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -112,24 +112,27 @@
 /* Begin PBXShellScriptBuildPhase section */
 		585E3F0730963ECB00D5079C /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			shellPath = /bin/sh;
 			shellScript = (
 				"# Locate git",
-				"git_path=$(which git)",
+				"GIT_BIN=$(xcrun -find git)",
 				"",
-				"# Get the total commit count on current branch",
-				"commit_count=$(\"$git_path\" rev-list --count HEAD 2>/dev/null)",
-				"",
-				"if [ -z \"$commit_count\" ]; then",
-				"    commit_count=1",
+				"# Read total commit count from source root",
+				"if [ -d \"$SRCROOT/.git\" ] || [ -f \"$SRCROOT/.git\" ]; then",
+				"    COMMITS=$(\"$GIT_BIN\" -C \"$SRCROOT\" rev-list --count HEAD 2>/dev/null)",
+				"else",
+				"    COMMITS=1",
 				"fi",
 				"",
-				"# Write commit count directly to build settings",
-				"export CURRENT_PROJECT_VERSION=$commit_count",
+				"[ -z \"$COMMITS\" ] && COMMITS=1",
 				"",
-				"# If you have an Info.plist file generated in the target build:",
-				"if [ -f \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\" ]; then",
-				"    /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $commit_count\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"",
+				"# Target the compiled Info.plist inside the built .app wrapper",
+				"APP_PLIST=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}/Info.plist\"",
+				"",
+				"if [ -f \"$APP_PLIST\" ]; then",
+				"    /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $COMMITS\" \"$APP_PLIST\"",
+				"    echo \"Updated CFBundleVersion to $COMMITS\"",
 				"fi",
 				"",
 			);
@@ -305,7 +308,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "devplaceholder.$(PROJECT_UNIQUE_VALUE:identifier).$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -350,7 +353,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "devplaceholder.$(PROJECT_UNIQUE_VALUE:identifier).$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
