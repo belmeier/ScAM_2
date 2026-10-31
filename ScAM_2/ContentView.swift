@@ -3,6 +3,14 @@ import PhotosUI
 import Vision
 import CoreImage
 
+// MARK: - Color Definitions
+extension Color {
+    static let brandTeal = Color("Colour-BluishGreen")
+    static let tealSurface = Color("Colour-Surface")
+    static let tealBorder = Color("Colour-Border")
+    static let tealSubtext = Color("Colour-Subtext")
+}
+
 struct ContentView: View {
     @State private var selectedItem: PhotosPickerItem?
     @State private var originalImage: UIImage?
@@ -12,79 +20,96 @@ struct ContentView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                // Image Comparison View
-                HStack(spacing: 12) {
-                    VStack {
-                        Text("Gambar sebelum")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            ZStack {
+                // Full-Screen Background matching the illustration
+                Color.tealSurface
+                    .ignoresSafeArea()
+                
+                VStack(spacing: 20) {
+                    // Image Comparison Cards
+                    HStack(spacing: 14) {
+                        previewCard(
+                            title: "Gambar sebelum",
+                            image: originalImage,
+                            placeholderIcon: "doc.badge.plus",
+                            placeholderText: "Pilih foto"
+                        )
                         
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(.secondarySystemBackground))
-                            if let originalImage {
-                                Image(uiImage: originalImage)
-                                    .resizable()
-                                    .scaledToFit()
-                            }
-                        }
+                        previewCard(
+                            title: "Gambar sesudah",
+                            image: croppedImage,
+                            placeholderIcon: "crop",
+                            placeholderText: "Hasil crop"
+                        )
                     }
+                    .frame(height: 260)
+                    .padding(.horizontal)
                     
-                    VStack {
-                        Text("Gambar sesudah")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(.secondarySystemBackground))
-                            if let croppedImage {
-                                Image(uiImage: croppedImage)
-                                    .resizable()
-                                    .scaledToFit()
+                    // Status Description
+                    Text(statusText)
+                        .font(.footnote)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.tealSubtext)
+                        .padding(.top, 4)
+                    
+                    // Photo Picker Button
+                    PhotosPicker(selection: $selectedItem, matching: .images) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "photo.on.rectangle")
+                            Text("Pilih gambarnya")
+                        }
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.brandTeal)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.tealBorder, lineWidth: 1.5)
+                        )
+                    }
+                    .padding(.horizontal)
+                    
+                    // Process Action Button
+                    Button {
+                        processReceipt()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isProcessing {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "crop")
+                                Text("Perbaiki otomatis semuanya")
                             }
                         }
-                    }
-                }
-                .frame(maxHeight: 280)
-                .padding(.horizontal)
-                
-                Text(statusText)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                
-                // Photo Picker
-                PhotosPicker(selection: $selectedItem, matching: .images) {
-                    Label("Choose Photo", systemImage: "photo")
+                        .font(.body.weight(.semibold))
                         .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .padding(.horizontal)
-                
-                // Action Button
-                Button {
-                    processReceipt()
-                } label: {
-                    if isProcessing {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Label("Perbaiki otomatis semuanya", systemImage: "crop")
+                        .frame(height: 50)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.brandTeal)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .disabled(originalImage == nil || isProcessing)
+                    .padding(.horizontal)
+                    
+                    Spacer()
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(originalImage == nil || isProcessing)
-                .padding(.horizontal)
-                
-                Spacer()
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("ScAM v2")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(.blue)
+                    VStack(spacing: 2) {
+                        Text("ScAM v2")
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.brandTeal)
+                        
+                        Text("Scan Anti Miring v2")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.tealSubtext)
+                    }
                 }
             }
             .onChange(of: selectedItem) { _, newItem in
@@ -94,6 +119,45 @@ struct ContentView: View {
                         originalImage = image
                         croppedImage = nil
                         statusText = "Siap untuk memotong"
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Card Subview
+    
+    @ViewBuilder
+    private func previewCard(title: String, image: UIImage?, placeholderIcon: String, placeholderText: String) -> some View {
+        VStack(spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.tealSubtext)
+            
+            ZStack {
+                // Crisp card container over the tinted background
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.tealBorder, lineWidth: 1.5)
+                    )
+                
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .padding(8)
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: placeholderIcon)
+                            .font(.system(size: 28))
+                            .foregroundStyle(Color.brandTeal.opacity(0.4))
+                        Text(placeholderText)
+                            .font(.caption2)
+                            .foregroundStyle(Color.tealSubtext.opacity(0.7))
                     }
                 }
             }
@@ -114,7 +178,7 @@ struct ContentView: View {
                 croppedImage = result
                 statusText = "Dokumen diperbaiki dengan sukses!"
             } else {
-                statusText = "Maaf, saya gagal mendeteksi bentuk persegi dokumen kamu."
+                statusText = "Maaf, gagal mendeteksi bentuk persegi dokumen."
             }
         }
     }
@@ -141,7 +205,6 @@ struct ContentView: View {
                 }
                 return ContentView.applyPerspectiveCorrection(to: cgImage, observation: document)
             } catch {
-                print("Vision error: \(error.localizedDescription)")
                 return nil
             }
         }.value
