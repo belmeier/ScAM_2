@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import Vision
 import CoreImage
+import CoreImage.CIFilterBuiltins
 
 // MARK: - Color Definitions
 extension Color {
@@ -18,16 +19,14 @@ struct ContentView: View {
     @State private var isProcessing = false
     @State private var statusText: String = "Pilih hasil pindai kamu!"
     
-    @State private var imageSaver: ImageSaver?
-    
     // Save Feedback States
+    @State private var imageSaver: ImageSaver?
     @State private var showingSaveAlert = false
     @State private var saveAlertMessage = ""
     
     var body: some View {
         NavigationStack {
             ZStack {
-                // Full-Screen Background matching the illustration
                 Color.tealSurface
                     .ignoresSafeArea()
                 
@@ -50,7 +49,7 @@ struct ContentView: View {
                     }
                     .frame(height: 250)
                     .padding(.horizontal)
-                    .padding(.top, 26)
+                    .padding(.top, 20)
                     
                     // Status Description
                     Text(statusText)
@@ -198,12 +197,12 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - Actions
+    // MARK: - User Actions
     
     private func processReceipt() {
         guard let originalImage else { return }
         isProcessing = true
-        statusText = "Mencari pinggiran dokumen kamu..."
+        statusText = "Mencari pinggiran dokumen..."
         
         Task {
             let result = await cropAndFlatten(image: originalImage)
@@ -219,8 +218,7 @@ struct ContentView: View {
     
     private func saveToPhotos() {
         guard let croppedImage else { return }
-
-        // Gunakan state agar saver tetap hidup di memori sampai proses callback selesai
+        
         imageSaver = ImageSaver()
         imageSaver?.onSuccess = {
             saveAlertMessage = "Hasil pindaian berhasil disimpan ke Galeri Foto!"
@@ -233,38 +231,38 @@ struct ContentView: View {
             showingSaveAlert = true
             imageSaver = nil
         }
-
+        
         imageSaver?.saveImage(croppedImage)
     }
     
-    // MARK: - Vision Processing
+    // MARK: - Vision Rectangle Detection
     
     private func cropAndFlatten(image: UIImage) async -> UIImage? {
         guard let cgImage = image.cgImage else { return nil }
         
-        return await Task.detached(priority: .userInitiated) {
-            let request = VNDetectRectanglesRequest()
-            request.minimumAspectRatio = 0.15
-            request.maximumAspectRatio = 1.0
-            request.minimumConfidence = 0.6
-            request.maximumObservations = 1
-            request.quadratureTolerance = 25
-            
-            let handler = VNImageRequestHandler(cgImage: cgImage, orientation: .up)
-            
-            do {
-                try handler.perform([request])
-                guard let document = request.results?.first as? VNRectangleObservation else {
-                    return nil
-                }
-                return ContentView.applyPerspectiveCorrection(to: cgImage, observation: document)
-            } catch {
-                return nil
-            }
-        }.value
+        var request = DetectRectanglesRequest()
+        request.minimumAspectRatio = 0.15
+        request.maximumAspectRatio = 1.0
+        request.minimumConfidence = 0.6
+        request.maximumObservations = 1
+        
+        let orientation = CGImagePropertyOrientation(image.imageOrientation)
+        
+        do {
+            let observations = try await request.perform(on: cgImage, orientation: orientation)
+            guard let document = observations.first else { return nil }
+            return ContentView.applyPerspectiveCorrection(to: cgImage, observation: document)
+        } catch {
+            return nil
+        }
     }
     
-    nonisolated private static func applyPerspectiveCorrection(to cgImage: CGImage, observation: VNRectangleObservation) -> UIImage? {
+    // MARK: - Perspective Correction & Image Formatting
+    
+    nonisolated private static func applyPerspectiveCorrection(
+        to cgImage: CGImage,
+        observation: RectangleObservation
+    ) -> UIImage? {
         let ciImage = CIImage(cgImage: cgImage)
         let imageSize = ciImage.extent.size
         
@@ -285,24 +283,24 @@ struct ContentView: View {
             y: observation.bottomRight.y * imageSize.height
         )
         
-        let correctedCI = ciImage.applyingFilter("CIPerspectiveCorrection", parameters: [
-            "inputTopLeft": CIVector(cgPoint: topLeft),
-            "inputTopRight": CIVector(cgPoint: topRight),
-            "inputBottomLeft": CIVector(cgPoint: bottomLeft),
-            "inputBottomRight": CIVector(cgPoint: bottomRight)
-        ])
+        let filter = CIFilter.perspectiveCorrection()
+        filter.inputImage = ciImage
+        filter.topLeft = topLeft
+        filter.topRight = topRight
+        filter.bottomLeft = bottomLeft
+        filter.bottomRight = bottomRight
         
-        // 1. Kunci color space ke standar sRGB 8-bit agar JFIF/JPEG encoder mengenalinya
+        guard let correctedCI = filter.outputImage else { return nil }
+        
         let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
         let context = CIContext(options: [
             .workingColorSpace: colorSpace,
             .outputColorSpace: colorSpace
         ])
         
-        let integralExtent = correctedCI.extent.integral
         guard let finalCG = context.createCGImage(
             correctedCI,
-            from: integralExtent,
+            from: correctedCI.extent.integral,
             format: .RGBA8,
             colorSpace: colorSpace
         ) else {
@@ -310,8 +308,6 @@ struct ContentView: View {
         }
         
         let rawImage = UIImage(cgImage: finalCG)
-        
-        // 2. Flatten bitmap untuk menghilangkan metadata CoreImage yang ditolak JFIF session
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1.0
         let renderer = UIGraphicsImageRenderer(size: rawImage.size, format: format)
@@ -321,4 +317,19 @@ struct ContentView: View {
     }
 }
 
-
+// MARK: - Orientation Helper
+extension CGImagePropertyOrientation {
+    init(_ uiOrientation: UIImage.Orientation) {
+        switch uiOrientation {
+        case .up: self = .up
+        case .upMirrored: self = .upMirrored
+        case .down: self = .down
+        case .downMirrored: self = .downMirrored
+        case .left: self = .left
+        case .leftMirrored: self = .leftMirrored
+        case .right: self = .right
+        case .rightMirrored: self = .rightMirrored
+        @unknown default: self = .up
+        }
+    }
+}
