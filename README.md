@@ -10,7 +10,7 @@ Originally built from scratch with assistance from Google Gemini, the primary go
 
 Many machine vision tutorials focus heavily on lower-level computer vision theory or abstract image encoding. **ScAM 2** takes a product-first approach:
 - Showing students how readily available Apple frameworks solve real daily friction (e.g., poorly angled, crumpled receipt photos in group chats).
-- Providing an understandable transition bridge between **Classic Vision APIs** (`VNImageRequestHandler`, `VNDetectRectanglesRequest`, `VNRectangleObservation`) and the **Modern Swift-Native Vision APIs** introduced in iOS 18+.
+-  Using the updated **Modern Swift-Native Vision APIs** introduced in iOS 18+.
 
 ---
 
