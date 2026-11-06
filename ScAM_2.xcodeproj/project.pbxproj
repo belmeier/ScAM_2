@@ -11,9 +11,22 @@
 		585E3F0230961F5400D5079C /* ScAM-2-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "ScAM-2-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		58BCA471309E4DFD0095C3C0 /* Exceptions for "ScAM_2" folder in "ScAM_2" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				README.md,
+			);
+			target = 000000000000000100000000 /* ScAM_2 */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		000000000000000000000010 /* ScAM_2 */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				58BCA471309E4DFD0095C3C0 /* Exceptions for "ScAM_2" folder in "ScAM_2" target */,
+			);
 			path = ScAM_2;
 			sourceTree = "<group>";
 		};
